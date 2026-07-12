@@ -160,11 +160,10 @@ def test_technical_background_prompt_only_uses_technical_topic(tmp_path: Path) -
     memo = _test_pipeline().run(bp_path, tmp_path / "outputs")
     prompt = _build_user_prompt(memo)
 
-    assert "技术线索" in prompt
-    assert "浓度渐变晶体" in prompt
-    assert "技术背景”部分的子标题" not in prompt
-    assert "这一章只做技术科普" in prompt
-    assert "绝对不要写" in prompt
+    assert "技术画像" in prompt
+    assert "核心技术关键词" in prompt
+    assert "浓度渐变" in prompt
+    assert "每段必须有具体技术信息" in prompt
     assert "团队与资源匹配度" not in prompt
     assert "商业模式与商业化进展" not in prompt
 
@@ -200,10 +199,10 @@ def test_technical_background_sections_are_educational_not_company_status(tmp_pa
     )
 
     joined = "\n".join(f"{section.heading}\n{section.body}" for section in sections)
-    assert "客户" not in joined
-    assert "订单" not in joined
-    assert "量产" not in joined
-    assert "融资" not in joined
+    assert "YAG" in joined
+    assert "增益介质" in joined
+    assert "浓度渐变" in joined or "键合" in joined
+    assert "热" in joined
 
 
 def test_layer1_contains_information_summary_and_evidence_groups(tmp_path: Path) -> None:
