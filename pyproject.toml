@@ -1,0 +1,23 @@
+[project]
+name = "bp-investment-screening"
+version = "0.1.0"
+description = "Lightweight BP-based investment screening research agent."
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.7",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+docs = [
+  "python-pptx>=0.6.23",
+  "pymupdf>=1.24",
+  "python-docx>=1.1",
+  "docxtpl>=0.16",
+]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

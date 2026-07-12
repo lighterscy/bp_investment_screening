@@ -1,0 +1,229 @@
+"""Formal Chinese-style Word report rendering."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Cm, Pt
+
+from bp_investment_screening.schemas import EvidenceItem, InvestmentMemo, Layer1ResearchItem
+from bp_investment_screening.technical_background import generate_technical_background_headings
+
+
+TITLE_FONT = "方正小标宋简体"
+BODY_FONT = "仿宋_GB2312"
+HEADING_FONT = "黑体"
+SECOND_HEADING_FONT = "楷体_GB2312"
+FALLBACK_EAST_ASIA_FONT = "宋体"
+
+
+class FormalDocxWriter:
+    """Render the final project screening memo as a formal Word document."""
+
+    def write(self, memo: InvestmentMemo, output_dir: str | Path) -> Path:
+        root = Path(output_dir)
+        root.mkdir(parents=True, exist_ok=True)
+        doc = Document()
+        _setup_document(doc)
+        _render_document(doc, memo)
+        path = root / "project_research_memo.docx"
+        doc.save(path)
+        return path
+
+
+def _setup_document(doc: Document) -> None:
+    section = doc.sections[0]
+    section.page_width = Cm(21)
+    section.page_height = Cm(29.7)
+    section.top_margin = Cm(3.7)
+    section.bottom_margin = Cm(3.5)
+    section.left_margin = Cm(2.8)
+    section.right_margin = Cm(2.6)
+
+    normal = doc.styles["Normal"]
+    normal.font.name = BODY_FONT
+    normal.font.size = Pt(16)
+    _set_east_asia_font(normal, BODY_FONT)
+    normal.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    normal.paragraph_format.line_spacing = Pt(28)
+    normal.paragraph_format.first_line_indent = Pt(32)
+
+
+def _render_document(doc: Document, memo: InvestmentMemo) -> None:
+    _add_title(doc, f"{memo.project_name}初步研判报告")
+    _add_first_heading(doc, "一、项目基本情况梳理")
+    _add_second_heading(doc, "（一）公司基础概况")
+    _add_body(doc, _company_overview(memo))
+    _add_second_heading(doc, "（二）股权结构与融资计划")
+    _add_body(doc, _claims_text(memo, ("融资",), "BP 未稳定披露股权结构与融资计划，需在下一步 DD 中补充确认。"))
+    _add_second_heading(doc, "（三）核心团队情况")
+    _add_body(doc, _claims_text(memo, ("团队与资源匹配度",), "BP 未稳定披露核心团队情况，需补充创始人履历、组织分工与关键技术负责人背景。"))
+    _add_second_heading(doc, "（四）技术背景")
+    _add_body(doc, "本部分用于帮助投资人逐步理解项目所处技术链条、核心痛点及项目方案位置。具体子标题应依据不同项目动态生成。")
+    for heading in generate_technical_background_headings(memo):
+        _add_third_heading(doc, heading)
+        _add_body(doc, "待结合外部资料与 BP 证据进一步展开，需区分项目方主张、外部证据与综合判断。")
+
+    _add_second_heading(doc, "（五）产品与技术情况")
+    _add_third_heading(doc, "1、技术情况")
+    _add_body(doc, _claims_text(memo, ("产品与服务", "技术趋势与政策环境"), "项目技术情况待补充。"))
+    _add_third_heading(doc, "2、产品情况")
+    _add_body(doc, _product_text(memo))
+    _add_third_heading(doc, "3、知产情况")
+    _add_body(doc, "BP 中如披露专利、软件著作权、核心工艺或技术秘密，应在此处列示；当前需进一步核验知识产权权属、有效性与保护边界。")
+
+    _add_second_heading(doc, "（六）业务与市场布局")
+    _add_body(doc, _claims_text(memo, ("商业模式与增长证据",), "业务、客户、订单及市场布局信息待补充核验。"))
+    _add_second_heading(doc, "（七）业绩及发展规划")
+    _add_body(doc, "业绩数据、收入构成、毛利水平、订单可实现性及未来规划均应作为待验证事项，后续需调取财务报表、合同/订单与客户访谈材料。")
+
+    _add_first_heading(doc, "二、项目所处行业基本情况分析")
+    _add_second_heading(doc, "（一）行业核心定义")
+    _add_body(doc, _industry_definition(memo))
+    _add_second_heading(doc, "（二）行业发展现状")
+    _add_third_heading(doc, "1、海外发展现状")
+    _add_body(doc, "待通过外部资料补充海外行业阶段、主要企业、技术路线及产业化节奏。")
+    _add_third_heading(doc, "2、国内发展现状")
+    _add_body(doc, "待通过外部资料补充国内政策环境、产业链成熟度、关键供给缺口及国产替代进展。")
+    _add_third_heading(doc, "3、技术突破与核心痛点")
+    _add_body(doc, _claims_text(memo, ("技术趋势与政策环境",), "行业技术突破与核心痛点待外部证据补充。"))
+    _add_second_heading(doc, "（三）行业市场规模")
+    _add_third_heading(doc, "1、国内市场规模")
+    _add_body(doc, "待通过可信第三方资料或产业链访谈补充国内市场规模、增速及可服务市场范围。")
+    _add_third_heading(doc, "2、全球市场规模")
+    _add_body(doc, "待通过可信第三方资料补充全球市场规模、主要区域分布及国际竞争格局。")
+    _add_second_heading(doc, "（四）行业主要竞争对手")
+    _add_body(doc, _claims_text(memo, ("竞争格局与替代方案",), "主要竞争对手、替代方案及项目差异化待外部证据补充。"))
+
+    _add_first_heading(doc, "三、初步建议")
+    _add_second_heading(doc, "（一）项目优势")
+    _add_body(doc, _list_to_sentence(memo.recommendation.strengths))
+    _add_second_heading(doc, "（二）项目疑问点")
+    questions = memo.recommendation.open_questions + memo.recommendation.key_risks
+    _add_body(doc, _list_to_sentence(questions))
+    _add_second_heading(doc, "（三）初步判断")
+    _add_body(
+        doc,
+        f"基于当前 BP 信息和已完成的初筛归集，项目初筛建议为“{memo.recommendation.recommendation}”，"
+        f"判断置信度为“{memo.recommendation.confidence}”。{memo.recommendation.one_sentence_view}",
+    )
+
+
+def _add_title(doc: Document, text: str) -> None:
+    paragraph = doc.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.first_line_indent = None
+    paragraph.paragraph_format.space_after = Pt(18)
+    run = paragraph.add_run(text)
+    _set_run_font(run, TITLE_FONT, Pt(22), bold=False)
+
+
+def _add_first_heading(doc: Document, text: str) -> None:
+    _add_heading(doc, text, HEADING_FONT, Pt(16), bold=True)
+
+
+def _add_second_heading(doc: Document, text: str) -> None:
+    _add_heading(doc, text, SECOND_HEADING_FONT, Pt(16), bold=True)
+
+
+def _add_third_heading(doc: Document, text: str) -> None:
+    _add_heading(doc, text, BODY_FONT, Pt(16), bold=True)
+
+
+def _add_heading(doc: Document, text: str, font: str, size: Pt, bold: bool) -> None:
+    paragraph = doc.add_paragraph()
+    paragraph.paragraph_format.first_line_indent = None
+    paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    paragraph.paragraph_format.line_spacing = Pt(28)
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
+    run = paragraph.add_run(text)
+    _set_run_font(run, font, size, bold=bold)
+
+
+def _add_body(doc: Document, text: str) -> None:
+    paragraph = doc.add_paragraph()
+    paragraph.paragraph_format.first_line_indent = Pt(32)
+    paragraph.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    paragraph.paragraph_format.line_spacing = Pt(28)
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
+    run = paragraph.add_run(text)
+    _set_run_font(run, BODY_FONT, Pt(16), bold=False)
+
+
+def _set_run_font(run, font_name: str, size: Pt, bold: bool) -> None:
+    run.bold = bold
+    run.font.name = font_name
+    run.font.size = size
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)
+    run._element.rPr.rFonts.set(qn("w:ascii"), "Times New Roman")
+    run._element.rPr.rFonts.set(qn("w:hAnsi"), "Times New Roman")
+
+
+def _set_east_asia_font(style, font_name: str) -> None:
+    rpr = style.element.get_or_add_rPr()
+    rfonts = rpr.rFonts
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.append(rfonts)
+    rfonts.set(qn("w:eastAsia"), font_name)
+    rfonts.set(qn("w:ascii"), "Times New Roman")
+    rfonts.set(qn("w:hAnsi"), "Times New Roman")
+
+
+def _company_overview(memo: InvestmentMemo) -> str:
+    return (
+        f"{memo.project_name}所属行业为{memo.industry or '待确认'}。"
+        "公司基础信息主要来源于 BP，当前阶段仅作为项目方披露信息归集，后续需通过工商信息、访谈及底层材料进一步核验。"
+    )
+
+
+def _product_text(memo: InvestmentMemo) -> str:
+    product_item = _find_item(memo, "产品与服务")
+    if product_item and product_item.bp_claims:
+        return _evidence_sentence(product_item.bp_claims)
+    return "BP 未稳定披露产品形态与服务边界，需进一步明确核心产品、应用场景、交付方式与客户使用效果。"
+
+
+def _industry_definition(memo: InvestmentMemo) -> str:
+    return (
+        f"本项目暂按{memo.industry or '待确认行业'}进行初步归类。"
+        "行业边界、上游供给、下游应用及项目所处产业链环节需结合外部研究进一步界定。"
+    )
+
+
+def _claims_text(memo: InvestmentMemo, topics: tuple[str, ...], fallback: str) -> str:
+    claims: list[EvidenceItem] = []
+    for topic in topics:
+        item = _find_item(memo, topic)
+        if item:
+            claims.extend(item.bp_claims[:4])
+    if claims:
+        return _evidence_sentence(claims)
+    return fallback
+
+
+def _find_item(memo: InvestmentMemo, topic: str) -> Layer1ResearchItem | None:
+    for item in memo.layer1_items:
+        if item.topic == topic:
+            return item
+    return None
+
+
+def _evidence_sentence(evidence: list[EvidenceItem]) -> str:
+    parts = []
+    for item in evidence[:4]:
+        page = f"（BP第{item.source_page}页）" if item.source_page else ""
+        parts.append(f"{item.content}{page}")
+    return "；".join(parts) + "。上述信息均需在后续 DD 中进一步核验。"
+
+
+def _list_to_sentence(items: list[str]) -> str:
+    if not items:
+        return "当前证据不足，需在下一步 DD 中补充核验。"
+    return "；".join(items) + "。"
