@@ -70,14 +70,14 @@ def _render_document(doc: Document, memo: InvestmentMemo) -> None:
 
     _add_second_heading(doc, "（五）产品与技术情况")
     _add_third_heading(doc, "1、技术情况")
-    _add_body(doc, _claims_text(memo, ("产品与服务", "技术趋势与政策环境"), "项目技术情况待补充。"))
+    _add_body(doc, _claims_text(memo, ("核心技术与技术壁垒",), "项目技术情况待补充。"))
     _add_third_heading(doc, "2、产品情况")
     _add_body(doc, _product_text(memo))
     _add_third_heading(doc, "3、知产情况")
     _add_body(doc, "BP 中如披露专利、软件著作权、核心工艺或技术秘密，应在此处列示；当前需进一步核验知识产权权属、有效性与保护边界。")
 
     _add_second_heading(doc, "（六）业务与市场布局")
-    _add_body(doc, _claims_text(memo, ("商业模式与增长证据",), "业务、客户、订单及市场布局信息待补充核验。"))
+    _add_body(doc, _claims_text(memo, ("商业模式与商业化进展",), "业务、客户、订单及市场布局信息待补充核验。"))
     _add_second_heading(doc, "（七）业绩及发展规划")
     _add_body(doc, "业绩数据、收入构成、毛利水平、订单可实现性及未来规划均应作为待验证事项，后续需调取财务报表、合同/订单与客户访谈材料。")
 
@@ -90,7 +90,7 @@ def _render_document(doc: Document, memo: InvestmentMemo) -> None:
     _add_third_heading(doc, "2、国内发展现状")
     _add_body(doc, "待通过外部资料补充国内政策环境、产业链成熟度、关键供给缺口及国产替代进展。")
     _add_third_heading(doc, "3、技术突破与核心痛点")
-    _add_body(doc, _claims_text(memo, ("技术趋势与政策环境",), "行业技术突破与核心痛点待外部证据补充。"))
+    _add_body(doc, _claims_text(memo, ("核心技术与技术壁垒", "政策环境与监管约束"), "行业技术突破与核心痛点待外部证据补充。"))
     _add_second_heading(doc, "（三）行业市场规模")
     _add_third_heading(doc, "1、国内市场规模")
     _add_body(doc, "待通过可信第三方资料或产业链访谈补充国内市场规模、增速及可服务市场范围。")

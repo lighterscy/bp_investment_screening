@@ -4,9 +4,13 @@ from pathlib import Path
 
 from bp_investment_screening.bp_parser import PlainTextParser, choose_parser
 from bp_investment_screening.claim_extractor import BPClaimExtractor
+from bp_investment_screening.layer1 import DEFAULT_LAYER1_TOPICS
 from bp_investment_screening.pipeline import ScreeningPipeline
 from bp_investment_screening.schemas import BPClaims, Claim
-from bp_investment_screening.technical_background import generate_technical_background_headings
+from bp_investment_screening.technical_background import (
+    _build_user_prompt,
+    generate_technical_background_headings,
+)
 
 
 def test_skeleton_pipeline_writes_memo(tmp_path: Path) -> None:
@@ -82,3 +86,38 @@ def test_technical_background_headings_have_numbering(tmp_path: Path) -> None:
 
     assert 3 <= len(headings) <= 5
     assert headings[0].startswith("1、")
+
+
+def test_layer1_topics_are_deoverlapped() -> None:
+    topic_names = [topic.name for topic in DEFAULT_LAYER1_TOPICS]
+
+    assert "核心技术与技术壁垒" in topic_names
+    assert "商业模式与商业化进展" in topic_names
+    assert "政策环境与监管约束" in topic_names
+    assert "技术趋势与政策环境" not in topic_names
+    assert "商业模式与增长证据" not in topic_names
+
+
+def test_technical_background_prompt_only_uses_technical_topic(tmp_path: Path) -> None:
+    bp_path = tmp_path / "auto_bp.md"
+    bp_path.write_text(
+        "\n".join(
+            [
+                "公司名称：Demo Photonics 有限公司",
+                "行业：光学材料",
+                "产品：激光晶体材料",
+                "技术：采用浓度渐变晶体提升热管理能力",
+                "团队：创始人具备多年产业经验",
+                "客户：已与下游客户开展试点",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    memo = ScreeningPipeline().run(bp_path, tmp_path / "outputs")
+    prompt = _build_user_prompt(memo)
+
+    assert "核心技术与技术壁垒" in prompt
+    assert "浓度渐变晶体" in prompt
+    assert "团队与资源匹配度" not in prompt
+    assert "商业模式与商业化进展" not in prompt

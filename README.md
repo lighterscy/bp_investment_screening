@@ -39,10 +39,26 @@ BP file
 
 | Topic Type | Preferred Source | Notes |
 | --- | --- | --- |
-| 公司名称、产品形态、融资诉求、团队履历 | BP first | 作为项目方披露信息，标注是否外部核验 |
+| 公司名称、产品形态、团队履历 | BP first | 作为项目方披露信息，标注是否外部核验 |
+| 核心技术与技术壁垒 | Balanced | BP 技术主张用于识别技术门类，外部资料用于校验技术路线、成熟度和壁垒 |
 | 当前收入、订单、客户案例、试点数据 | BP first + verification required | 默认视为 claim，需后续 DD 验证 |
-| 行业阶段、市场规模、竞争格局、技术趋势、政策环境 | External first | BP 信息容易乐观化，只做补充 |
-| 商业模式、增长证据、竞争优势 | External first + BP context | 需要对 BP 叙事做外部事实校验 |
+| 行业阶段、市场规模、竞争格局、政策环境 | External first | BP 信息容易乐观化，只做补充 |
+| 商业模式、商业化进展、竞争优势 | Balanced | 需要对 BP 叙事做外部事实校验 |
+
+## Layer1 Topics
+
+当前 Layer1 topic 尽量减少相互交叠：
+
+```text
+公司基本信息
+产品与服务
+核心技术与技术壁垒
+商业模式与商业化进展
+团队与资源匹配度
+行业阶段与市场空间
+竞争格局与替代方案
+政策环境与监管约束
+```
 
 ## Directory Layout
 
@@ -97,7 +113,7 @@ data/
 PYTHONPATH=src python3 -m bp_investment_screening run data/case1/inputs/project_bp.pdf
 ```
 
-最终 Word 研究文档格式见 `templates/final_research_memo_format.md`。其中“技术背景”子标题会依据项目动态生成：配置 LLM 时优先调用 LLM，未配置时使用保守规则 fallback。
+最终 Word 研究文档格式见 `templates/final_research_memo_format.md`。其中“技术背景”子标题只基于 Layer1 的“核心技术与技术壁垒”节点动态生成：配置 LLM 时优先调用 LLM，未配置时使用保守规则 fallback。LLM 的目标是为零基础读者搭建循序渐进的学习路径，先解释上位技术体系，再说明发展阶段、传统方案痛点，最后引出项目技术路线。
 
 如果需要 PDF/PPTX/Word 支持，先安装可选依赖：
 
@@ -114,8 +130,8 @@ python3 -m pip install -e '.[docs]'
    - 每个外部优先 topic 控制 1-2 个 query
    - 保存 evidence source、snippet、url、confidence
 3. 实现正式轻量 Layer1 synthesis：
-   - company: 基本信息、产品服务、商业模式、团队、增长证据
-   - industry: 行业阶段、市场规模、竞争格局、技术趋势、政策环境
+   - company: 基本信息、产品服务、核心技术与技术壁垒、商业化、团队
+   - industry: 行业阶段、市场规模、竞争格局、政策监管
 4. 实现 Layer2 投资初筛：
    - 使用 `skills/investment_screening.md`
    - 输出结构化 recommendation JSON

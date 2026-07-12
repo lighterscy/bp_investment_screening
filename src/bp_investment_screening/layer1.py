@@ -24,11 +24,12 @@ class Layer1Topic:
 DEFAULT_LAYER1_TOPICS = [
     Layer1Topic("company", "公司基本信息", "bp_first", None),
     Layer1Topic("company", "产品与服务", "bp_first", None),
-    Layer1Topic("company", "商业模式与增长证据", "external_first", "{company} 商业模式 客户 收入 增长"),
+    Layer1Topic("company", "核心技术与技术壁垒", "balanced", "{company} {industry} 核心技术 专利 技术壁垒"),
+    Layer1Topic("company", "商业模式与商业化进展", "balanced", "{company} 商业模式 客户 收入 订单"),
     Layer1Topic("company", "团队与资源匹配度", "bp_first", "{company} 创始人 团队 履历"),
     Layer1Topic("industry", "行业阶段与市场空间", "external_first", "{industry} 行业 阶段 市场规模 增长"),
     Layer1Topic("industry", "竞争格局与替代方案", "external_first", "{industry} 竞争格局 竞品 替代方案"),
-    Layer1Topic("industry", "技术趋势与政策环境", "external_first", "{industry} 技术趋势 政策 监管"),
+    Layer1Topic("industry", "政策环境与监管约束", "external_first", "{industry} 政策 监管 产业政策"),
 ]
 
 
@@ -82,13 +83,27 @@ def _bp_evidence_for_topic(topic: str, claims: BPClaims) -> list[EvidenceItem]:
                 evidence.append(EvidenceItem(source_type="bp", title=title, content=value))
     claim_groups = []
     if topic == "产品与服务":
-        claim_groups = [claims.technology_claims, claims.customer_claims]
-    elif topic == "商业模式与增长证据":
+        if claims.product_summary:
+            evidence.append(
+                EvidenceItem(
+                    source_type="bp",
+                    title="产品概述",
+                    content=claims.product_summary,
+                )
+            )
+        claim_groups = []
+    elif topic == "核心技术与技术壁垒":
+        claim_groups = [claims.technology_claims]
+    elif topic == "商业模式与商业化进展":
         claim_groups = [claims.business_model_claims, claims.traction_claims, claims.financial_claims]
     elif topic == "团队与资源匹配度":
-        claim_groups = [claims.team_claims, claims.fundraising_claims]
-    elif topic.startswith("行业"):
+        claim_groups = [claims.team_claims]
+    elif topic == "行业阶段与市场空间":
         claim_groups = [claims.market_claims]
+    elif topic == "竞争格局与替代方案":
+        claim_groups = []
+    elif topic == "政策环境与监管约束":
+        claim_groups = [claims.risk_disclosures]
     for group in claim_groups:
         for claim in group:
             evidence.append(
@@ -118,4 +133,3 @@ def _open_questions(topic: Layer1Topic, external_evidence: list[EvidenceItem]) -
     if topic.evidence_priority == "external_first" and not external_evidence:
         return [f"{topic.name}缺少外部证据，需要联网搜索或人工补充。"]
     return []
-
