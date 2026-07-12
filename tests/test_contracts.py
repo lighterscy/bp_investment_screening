@@ -14,6 +14,7 @@ from bp_investment_screening.schemas import BPClaims, Claim
 from bp_investment_screening.search import NullSearchClient
 from bp_investment_screening.technical_background import (
     _build_user_prompt,
+    generate_technical_background_sections,
     generate_technical_background_headings,
 )
 
@@ -151,10 +152,50 @@ def test_technical_background_prompt_only_uses_technical_topic(tmp_path: Path) -
     memo = _test_pipeline().run(bp_path, tmp_path / "outputs")
     prompt = _build_user_prompt(memo)
 
-    assert "核心技术与技术壁垒" in prompt
+    assert "技术线索" in prompt
     assert "浓度渐变晶体" in prompt
+    assert "技术背景”部分的子标题" not in prompt
+    assert "这一章只做技术科普" in prompt
+    assert "绝对不要写" in prompt
     assert "团队与资源匹配度" not in prompt
     assert "商业模式与商业化进展" not in prompt
+
+
+def test_technical_background_sections_are_educational_not_company_status(tmp_path: Path) -> None:
+    bp_path = tmp_path / "auto_bp.md"
+    bp_path.write_text(
+        "\n".join(
+            [
+                "公司名称：Demo Photonics 有限公司",
+                "行业：光学材料",
+                "技术：采用浓度渐变 YAG 晶体提升热管理能力",
+                "客户：已与下游客户开展试点",
+                "订单：已经进入批量供应阶段",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    memo = _test_pipeline().run(bp_path, tmp_path / "outputs")
+    sections = generate_technical_background_sections(
+        memo,
+        llm_client=LLMClient(
+            settings=Settings(
+                llm_base_url=None,
+                llm_api_key=None,
+                llm_model=None,
+                tavily_api_key=None,
+                tavily_base_url=None,
+                output_root=Path("data"),
+            )
+        ),
+    )
+
+    joined = "\n".join(f"{section.heading}\n{section.body}" for section in sections)
+    assert "客户" not in joined
+    assert "订单" not in joined
+    assert "量产" not in joined
+    assert "融资" not in joined
 
 
 def test_layer1_contains_information_summary_and_evidence_groups(tmp_path: Path) -> None:

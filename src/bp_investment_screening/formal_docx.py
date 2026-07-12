@@ -12,7 +12,7 @@ from docx.shared import Cm, Pt
 
 from bp_investment_screening.llm import LLMClient
 from bp_investment_screening.schemas import EvidenceItem, InvestmentMemo, Layer1ResearchItem
-from bp_investment_screening.technical_background import generate_technical_background_headings
+from bp_investment_screening.technical_background import generate_technical_background_sections
 
 
 TITLE_FONT = "方正小标宋简体"
@@ -71,11 +71,10 @@ def _render_document(
     _add_second_heading(doc, "（三）核心团队情况")
     _add_body(doc, _claims_text(memo, ("团队与资源匹配度",), "BP 未稳定披露核心团队情况，需补充创始人履历、组织分工与关键技术负责人背景。"))
     _add_second_heading(doc, "（四）技术背景")
-    _add_body(doc, "本部分用于帮助投资人逐步理解项目所处技术链条、核心痛点及项目方案位置。具体子标题应依据不同项目动态生成。")
-    technical_item = _find_item(memo, "核心技术与技术壁垒")
-    for heading in generate_technical_background_headings(memo, llm_client=llm_client):
-        _add_third_heading(doc, heading)
-        _add_body(doc, _technical_background_body(technical_item))
+    _add_body(doc, "本部分用于说明项目涉及的技术门类本身，帮助读者先理解基础概念、上位体系、关键原理和技术演进逻辑；具体公司技术进展在后文“产品与技术情况”中展开。")
+    for section in generate_technical_background_sections(memo, llm_client=llm_client):
+        _add_third_heading(doc, section.heading)
+        _add_body(doc, section.body)
 
     _add_second_heading(doc, "（五）产品与技术情况")
     _add_third_heading(doc, "1、技术情况")
@@ -204,19 +203,6 @@ def _industry_definition(memo: InvestmentMemo) -> str:
         f"本项目暂按{memo.industry or '待确认行业'}进行初步归类。"
         "行业边界、上游供给、下游应用及项目所处产业链环节需结合外部研究进一步界定。"
     )
-
-
-def _technical_background_body(item: Layer1ResearchItem | None) -> str:
-    if not item:
-        return "待结合外部资料与 BP 证据进一步展开，需区分项目方主张、外部证据与综合判断。"
-    parts = []
-    if item.information_summary:
-        parts.append(item.information_summary.integrated_summary)
-    if item.synthesis:
-        parts.append(item.synthesis)
-    if item.open_questions:
-        parts.append("后续需重点验证：" + "；".join(item.open_questions[:3]) + "。")
-    return "".join(parts) or "待结合外部资料与 BP 证据进一步展开，需区分项目方主张、外部证据与综合判断。"
 
 
 def _claims_text(memo: InvestmentMemo, topics: tuple[str, ...], fallback: str) -> str:
