@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Lightweight BP-based investment screening research agent."
 requires-python = ">=3.11"
 dependencies = [
+  "certifi>=2024.0",
   "pydantic>=2.7",
   "python-dotenv>=1.0",
 ]

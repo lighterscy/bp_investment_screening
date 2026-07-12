@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from bp_investment_screening.evidence_normalizer import EvidenceNormalizer
+from bp_investment_screening.layer1_synthesizer import Layer1Synthesizer
 from bp_investment_screening.schemas import (
     BPClaims,
     EvidenceItem,
@@ -11,6 +13,7 @@ from bp_investment_screening.schemas import (
     Layer1ResearchItem,
 )
 from bp_investment_screening.search import SearchClient, SearchQuery
+from bp_investment_screening.tracing import NullTracer, Tracer
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,18 +21,58 @@ class Layer1Topic:
     domain: str
     name: str
     evidence_priority: EvidencePriority
-    search_query_template: str | None = None
+    search_query_templates: tuple[str, ...] = ()
 
 
 DEFAULT_LAYER1_TOPICS = [
-    Layer1Topic("company", "公司基本信息", "bp_first", None),
-    Layer1Topic("company", "产品与服务", "bp_first", None),
-    Layer1Topic("company", "核心技术与技术壁垒", "balanced", "{company} {industry} 核心技术 专利 技术壁垒"),
-    Layer1Topic("company", "商业模式与商业化进展", "balanced", "{company} 商业模式 客户 收入 订单"),
-    Layer1Topic("company", "团队与资源匹配度", "bp_first", "{company} 创始人 团队 履历"),
-    Layer1Topic("industry", "行业阶段与市场空间", "external_first", "{industry} 行业 阶段 市场规模 增长"),
-    Layer1Topic("industry", "竞争格局与替代方案", "external_first", "{industry} 竞争格局 竞品 替代方案"),
-    Layer1Topic("industry", "政策环境与监管约束", "external_first", "{industry} 政策 监管 产业政策"),
+    Layer1Topic("company", "公司基本信息", "bp_first"),
+    Layer1Topic("company", "产品与服务", "bp_first"),
+    Layer1Topic(
+        "company",
+        "核心技术与技术壁垒",
+        "balanced",
+        (
+            "{company} {industry} 核心技术 专利 技术壁垒",
+            "{industry} 技术路线 关键指标 成熟度",
+        ),
+    ),
+    Layer1Topic(
+        "company",
+        "商业模式与商业化进展",
+        "balanced",
+        (
+            "{company} 商业模式 客户 收入 订单",
+            "{industry} 商业模式 客户认证 供应链",
+        ),
+    ),
+    Layer1Topic("company", "团队与资源匹配度", "bp_first", ("{company} 创始人 团队 履历",)),
+    Layer1Topic(
+        "industry",
+        "行业阶段与市场空间",
+        "external_first",
+        (
+            "{industry} 行业 阶段 市场规模 增长",
+            "{industry} 产业链 上游 下游 应用场景",
+        ),
+    ),
+    Layer1Topic(
+        "industry",
+        "竞争格局与替代方案",
+        "external_first",
+        (
+            "{industry} 竞争格局 主要厂商",
+            "{industry} 替代方案 技术路线 对比",
+        ),
+    ),
+    Layer1Topic(
+        "industry",
+        "政策环境与监管约束",
+        "external_first",
+        (
+            "{industry} 政策 监管 产业政策",
+            "{industry} 认证 准入 合规 风险",
+        ),
+    ),
 ]
 
 
@@ -40,22 +83,34 @@ class Layer1Researcher:
         self,
         search_client: SearchClient,
         topics: list[Layer1Topic] | None = None,
+        evidence_normalizer: EvidenceNormalizer | None = None,
+        synthesizer: Layer1Synthesizer | None = None,
+        tracer: Tracer | None = None,
     ) -> None:
         self.search_client = search_client
         self.topics = topics or DEFAULT_LAYER1_TOPICS
+        self.evidence_normalizer = evidence_normalizer or EvidenceNormalizer()
+        self.synthesizer = synthesizer or Layer1Synthesizer()
+        self.tracer = tracer or NullTracer()
 
     def run(self, claims: BPClaims) -> list[Layer1ResearchItem]:
         items: list[Layer1ResearchItem] = []
         company = claims.company_name or "未知公司"
         industry = claims.industry or "未知行业"
         for topic in self.topics:
-            external_evidence: list[EvidenceItem] = []
-            if topic.search_query_template:
-                query = topic.search_query_template.format(company=company, industry=industry)
-                external_evidence = self.search_client.search(
-                    SearchQuery(query=query, purpose=topic.name)
+            with self.tracer.step(f"layer1 topic: {topic.name}"):
+                external_evidence = self._search_topic(topic, company, industry)
+                self.tracer.log(
+                    f"[layer1] evidence topic={topic.name} bp={len(_bp_evidence_for_topic(topic.name, claims))} "
+                    f"external={len(external_evidence)}"
                 )
             bp_evidence = _bp_evidence_for_topic(topic.name, claims)
+            evidence_groups = self.evidence_normalizer.normalize(
+                topic.name,
+                bp_evidence,
+                external_evidence,
+            )
+            synthesis_result = self.synthesizer.synthesize(topic, evidence_groups)
             items.append(
                 Layer1ResearchItem(
                     domain=topic.domain,  # type: ignore[arg-type]
@@ -63,12 +118,38 @@ class Layer1Researcher:
                     evidence_priority=topic.evidence_priority,
                     bp_claims=bp_evidence,
                     external_evidence=external_evidence,
-                    synthesis=_placeholder_synthesis(topic, bp_evidence, external_evidence),
-                    confidence="low" if not external_evidence else "medium",
-                    open_questions=_open_questions(topic, external_evidence),
+                    synthesis=synthesis_result.synthesis,
+                    confidence=synthesis_result.confidence,
+                    evidence_groups=_merge_group_details(
+                        evidence_groups,
+                        synthesis_result.evidence_groups,
+                    ),
+                    information_summary=synthesis_result.information_summary,
+                    key_risks=synthesis_result.key_risks,
+                    open_questions=synthesis_result.open_questions,
                 )
             )
         return items
+
+    def _search_topic(
+        self,
+        topic: Layer1Topic,
+        company: str,
+        industry: str,
+    ) -> list[EvidenceItem]:
+        evidence: list[EvidenceItem] = []
+        seen: set[tuple[str | None, str]] = set()
+        for template in topic.search_query_templates:
+            query_text = template.format(company=company, industry=industry)
+            for item in self.search_client.search(
+                SearchQuery(query=query_text, purpose=topic.name)
+            ):
+                key = (item.url, item.title)
+                if key in seen:
+                    continue
+                seen.add(key)
+                evidence.append(item)
+        return evidence
 
 
 def _bp_evidence_for_topic(topic: str, claims: BPClaims) -> list[EvidenceItem]:
@@ -118,18 +199,25 @@ def _bp_evidence_for_topic(topic: str, claims: BPClaims) -> list[EvidenceItem]:
     return evidence
 
 
-def _placeholder_synthesis(
-    topic: Layer1Topic,
-    bp_evidence: list[EvidenceItem],
-    external_evidence: list[EvidenceItem],
-) -> str:
-    return (
-        f"{topic.name}已收集 BP 证据 {len(bp_evidence)} 条、外部证据 {len(external_evidence)} 条。"
-        "当前为框架占位综合，后续应由 LLM 按证据优先级生成正式研究结论。"
-    )
-
-
-def _open_questions(topic: Layer1Topic, external_evidence: list[EvidenceItem]) -> list[str]:
-    if topic.evidence_priority == "external_first" and not external_evidence:
-        return [f"{topic.name}缺少外部证据，需要联网搜索或人工补充。"]
-    return []
+def _merge_group_details(
+    evidence_groups,
+    synthesized_groups,
+):
+    synthesized_by_aspect = {group.aspect: group for group in synthesized_groups}
+    merged = []
+    for group in evidence_groups:
+        synthesized = synthesized_by_aspect.get(group.aspect)
+        if synthesized:
+            merged.append(
+                type(group)(
+                    aspect=group.aspect,
+                    bp_claims=group.bp_claims,
+                    external_evidence=group.external_evidence,
+                    summary=synthesized.summary,
+                    conflicts=synthesized.conflicts,
+                    open_questions=synthesized.open_questions,
+                )
+            )
+        else:
+            merged.append(group)
+    return merged

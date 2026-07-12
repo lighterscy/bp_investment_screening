@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from bp_investment_screening.llm import LLMClient
 from bp_investment_screening.schemas import InvestmentMemo
 
 
@@ -16,10 +17,15 @@ class ReportWriter:
     memo template is designed.
     """
 
-    def __init__(self, template_path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        template_path: str | Path | None = None,
+        llm_client: LLMClient | None = None,
+    ) -> None:
         self.template_path = Path(template_path) if template_path else Path(
             "templates/investment_memo.docx"
         )
+        self.llm_client = llm_client
 
     def write(self, memo: InvestmentMemo, output_dir: str | Path) -> dict[str, Path]:
         root = Path(output_dir)
@@ -32,7 +38,7 @@ class ReportWriter:
         )
         md_path.write_text(_render_markdown(memo), encoding="utf-8")
         paths = {"json": json_path, "markdown": md_path}
-        formal_docx_path = _try_render_formal_docx(memo, root)
+        formal_docx_path = _try_render_formal_docx(memo, root, self.llm_client)
         if formal_docx_path:
             paths["formal_docx"] = formal_docx_path
         docx_path = _try_render_docx(memo, root, self.template_path)
@@ -75,11 +81,14 @@ def _render_markdown(memo: InvestmentMemo) -> str:
                 "",
                 f"- 证据优先级：{item.evidence_priority}",
                 f"- 置信度：{item.confidence}",
+                f"- 信息整合：{item.information_summary.integrated_summary if item.information_summary else '暂无'}",
                 f"- 综合判断：{item.synthesis}",
                 f"- BP 主张：{len(item.bp_claims)} 条",
                 f"- 外部证据：{len(item.external_evidence)} 条",
             ]
         )
+        if item.key_risks:
+            lines.append("- 关键风险：" + "；".join(item.key_risks))
         if item.open_questions:
             lines.append("- 开放问题：" + "；".join(item.open_questions))
         lines.append("")
@@ -112,9 +121,13 @@ def _try_render_docx(
     return docx_path
 
 
-def _try_render_formal_docx(memo: InvestmentMemo, output_dir: Path) -> Path | None:
+def _try_render_formal_docx(
+    memo: InvestmentMemo,
+    output_dir: Path,
+    llm_client: LLMClient | None,
+) -> Path | None:
     try:
         from bp_investment_screening.formal_docx import FormalDocxWriter
     except ImportError:
         return None
-    return FormalDocxWriter().write(memo, output_dir)
+    return FormalDocxWriter(llm_client=llm_client).write(memo, output_dir)

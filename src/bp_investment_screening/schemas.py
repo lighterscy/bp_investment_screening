@@ -86,6 +86,29 @@ class EvidenceItem:
 
 
 @dataclass(frozen=True, slots=True)
+class TopicInformationSummary:
+    bp_claims_summary: str
+    external_evidence_summary: str
+    integrated_summary: str
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceGroup:
+    aspect: str
+    bp_claims: list[EvidenceItem] = field(default_factory=list)
+    external_evidence: list[EvidenceItem] = field(default_factory=list)
+    summary: str = ""
+    conflicts: list[str] = field(default_factory=list)
+    open_questions: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
 class Layer1ResearchItem:
     domain: Literal["company", "industry"]
     topic: str
@@ -94,6 +117,9 @@ class Layer1ResearchItem:
     external_evidence: list[EvidenceItem]
     synthesis: str
     confidence: Confidence
+    evidence_groups: list[EvidenceGroup] = field(default_factory=list)
+    information_summary: TopicInformationSummary | None = None
+    key_risks: list[str] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -131,4 +157,3 @@ class InvestmentMemo:
             "layer1_items": [item.to_dict() for item in self.layer1_items],
             "source_bp_path": str(self.source_bp_path),
         }
-

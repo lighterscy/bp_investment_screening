@@ -8,6 +8,8 @@ import urllib.request
 from dataclasses import dataclass
 
 from bp_investment_screening.config import Settings
+from bp_investment_screening.http import default_ssl_context
+from bp_investment_screening.tracing import NullTracer, Tracer
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,9 +24,15 @@ class LLMClient:
     should fall back to deterministic behavior.
     """
 
-    def __init__(self, settings: Settings | None = None, timeout_seconds: int = 60) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        timeout_seconds: int = 660,
+        tracer: Tracer | None = None,
+    ) -> None:
         self.settings = settings or Settings.from_env()
         self.timeout_seconds = timeout_seconds
+        self.tracer = tracer or NullTracer()
 
     @property
     def is_configured(self) -> bool:
@@ -47,6 +55,10 @@ class LLMClient:
             ],
             "temperature": 0.2,
         }
+        self.tracer.log(
+            f"[llm] request model={self.settings.llm_model} timeout={self.timeout_seconds}s "
+            f"prompt_chars={len(system_prompt) + len(user_prompt)}"
+        )
         request = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
@@ -57,9 +69,14 @@ class LLMClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with urllib.request.urlopen(
+                request,
+                timeout=self.timeout_seconds,
+                context=default_ssl_context(),
+            ) as response:
                 body = json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        except (OSError, urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            self.tracer.log(f"[llm] failed {type(exc).__name__}: {str(exc)[:200]}")
             return None
 
         content = (
@@ -68,7 +85,9 @@ class LLMClient:
             .get("content")
         )
         if not isinstance(content, str) or not content.strip():
+            self.tracer.log("[llm] empty response")
             return None
+        self.tracer.log(f"[llm] response chars={len(content.strip())}")
         return LLMResult(text=content.strip())
 
 

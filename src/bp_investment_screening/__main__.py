@@ -39,7 +39,12 @@ def _run(bp_path: str, output_dir: str, template_path: str | None) -> None:
 
     writer = ReportWriter(template_path=template_path) if template_path else None
     resolved_output_dir = _default_output_dir(Path(bp_path), output_dir)
-    memo = ScreeningPipeline(report_writer=writer).run(bp_path, resolved_output_dir)
+    from bp_investment_screening.tracing import Tracer
+
+    memo = ScreeningPipeline(report_writer=writer, tracer=Tracer()).run(
+        bp_path,
+        resolved_output_dir,
+    )
     print(f"项目：{memo.project_name}")
     print(f"行业：{memo.industry or '未知'}")
     print(f"建议：{memo.recommendation.recommendation}")
