@@ -7,8 +7,10 @@ from bp_investment_screening.claim_extractor import BPClaimExtractor
 from bp_investment_screening.config import Settings
 from bp_investment_screening.layer1 import DEFAULT_LAYER1_TOPICS
 from bp_investment_screening.layer1_synthesizer import Layer1Synthesizer
+from bp_investment_screening.layer2 import InvestmentAnalyzer
 from bp_investment_screening.llm import LLMClient
 from bp_investment_screening.pipeline import ScreeningPipeline
+from bp_investment_screening.report_composer import ReportSectionComposer
 from bp_investment_screening.report_writer import ReportWriter
 from bp_investment_screening.schemas import BPClaims, Claim
 from bp_investment_screening.search import NullSearchClient
@@ -32,6 +34,7 @@ def _test_pipeline() -> ScreeningPipeline:
     return ScreeningPipeline(
         search_client=NullSearchClient(),
         layer1_synthesizer=Layer1Synthesizer(llm_client),
+        investment_analyzer=InvestmentAnalyzer(llm_client=llm_client),
         report_writer=ReportWriter(llm_client=llm_client),
     )
 
@@ -128,6 +131,11 @@ def test_layer1_topics_are_deoverlapped() -> None:
 
     assert "核心技术与技术壁垒" in topic_names
     assert "商业模式与商业化进展" in topic_names
+    assert "股权结构与融资计划" in topic_names
+    assert "知识产权与资质认证" in topic_names
+    assert "业绩表现与发展规划" in topic_names
+    assert "国内外发展现状" in topic_names
+    assert "市场规模与增长测算" in topic_names
     assert "政策环境与监管约束" in topic_names
     assert "技术趋势与政策环境" not in topic_names
     assert "商业模式与增长证据" not in topic_names
@@ -214,3 +222,41 @@ def test_layer1_contains_information_summary_and_evidence_groups(tmp_path: Path)
     assert technical_item.information_summary.integrated_summary
     assert technical_item.evidence_groups
     assert isinstance(technical_item.key_risks, list)
+
+
+def test_report_composer_maps_word_sections_to_layer1(tmp_path: Path) -> None:
+    bp_path = tmp_path / "auto_bp.md"
+    bp_path.write_text(
+        "\n".join(
+            [
+                "公司名称：Demo Photonics 有限公司",
+                "行业：光学材料",
+                "融资：计划融资 5000 万元用于产线建设",
+                "专利：已布局多项激光晶体材料相关专利",
+                "业绩：预计未来三年收入持续增长",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    memo = _test_pipeline().run(bp_path, tmp_path / "outputs")
+    composer = ReportSectionComposer(
+        llm_client=LLMClient(
+            settings=Settings(
+                llm_base_url=None,
+                llm_api_key=None,
+                llm_model=None,
+                tavily_api_key=None,
+                tavily_base_url=None,
+                output_root=Path("data"),
+            )
+        )
+    )
+
+    financing = composer.compose(memo, "股权结构与融资计划", "fallback", use_llm=False)
+    ip = composer.compose(memo, "知产情况", "fallback", use_llm=False)
+    performance = composer.compose(memo, "业绩及发展规划", "fallback", use_llm=False)
+
+    assert financing != "fallback"
+    assert ip != "fallback"
+    assert performance != "fallback"

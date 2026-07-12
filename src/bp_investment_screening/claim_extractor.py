@@ -12,14 +12,14 @@ from bp_investment_screening.schemas import BPClaims, Claim, DocumentParseResult
 
 
 SECTION_KEYWORDS = {
-    "business_model_claims": ("商业模式", "盈利模式", "收费", "收入模式", "渠道"),
-    "market_claims": ("市场", "行业", "规模", "空间", "增速", "赛道"),
-    "traction_claims": ("客户", "订单", "收入", "营收", "增长", "落地", "试点", "合作"),
+    "business_model_claims": ("商业模式", "盈利模式", "收费", "收入模式", "渠道", "采购", "销售"),
+    "market_claims": ("市场", "行业", "规模", "空间", "增速", "赛道", "国内", "海外", "全球", "国产替代"),
+    "traction_claims": ("客户", "订单", "收入", "营收", "增长", "落地", "试点", "合作", "批量", "供应", "认证"),
     "team_claims": ("团队", "创始", "核心成员", "履历", "博士", "教授"),
-    "financial_claims": ("财务", "收入", "营收", "毛利", "利润", "现金流"),
-    "fundraising_claims": ("融资", "估值", "募资", "出让", "资金用途"),
+    "financial_claims": ("财务", "收入", "营收", "毛利", "利润", "现金流", "业绩", "规划", "预测", "目标"),
+    "fundraising_claims": ("融资", "估值", "募资", "出让", "资金用途", "股权", "股东", "持股", "增资", "投资人"),
     "customer_claims": ("客户", "合作", "案例", "订单", "供应商", "渠道"),
-    "technology_claims": ("技术", "产品", "专利", "研发", "算法", "材料", "工艺"),
+    "technology_claims": ("技术", "产品", "专利", "知识产权", "软著", "研发", "算法", "材料", "工艺", "晶体", "镀膜"),
     "risk_disclosures": ("风险", "挑战", "不确定", "依赖", "瓶颈"),
 }
 

@@ -45,6 +45,32 @@ DEFAULT_LAYER1_TOPICS = [
             "{industry} 商业模式 客户认证 供应链",
         ),
     ),
+    Layer1Topic(
+        "company",
+        "股权结构与融资计划",
+        "bp_first",
+        (
+            "{company} 融资 估值 股东 股权",
+        ),
+    ),
+    Layer1Topic(
+        "company",
+        "知识产权与资质认证",
+        "balanced",
+        (
+            "{company} 专利 知识产权 资质 认证",
+            "{company} 高新技术企业 专精特新",
+        ),
+    ),
+    Layer1Topic(
+        "company",
+        "业绩表现与发展规划",
+        "balanced",
+        (
+            "{company} 营收 收入 业绩 发展规划",
+            "{industry} 企业 营收 增长 规划",
+        ),
+    ),
     Layer1Topic("company", "团队与资源匹配度", "bp_first", ("{company} 创始人 团队 履历",)),
     Layer1Topic(
         "industry",
@@ -53,6 +79,24 @@ DEFAULT_LAYER1_TOPICS = [
         (
             "{industry} 行业 阶段 市场规模 增长",
             "{industry} 产业链 上游 下游 应用场景",
+        ),
+    ),
+    Layer1Topic(
+        "industry",
+        "国内外发展现状",
+        "external_first",
+        (
+            "{industry} 海外 发展现状 主要企业",
+            "{industry} 国内 发展现状 国产替代",
+        ),
+    ),
+    Layer1Topic(
+        "industry",
+        "市场规模与增长测算",
+        "external_first",
+        (
+            "{industry} 国内 市场规模 增速",
+            "{industry} 全球 市场规模 CAGR",
         ),
     ),
     Layer1Topic(
@@ -177,10 +221,20 @@ def _bp_evidence_for_topic(topic: str, claims: BPClaims) -> list[EvidenceItem]:
         claim_groups = [claims.technology_claims]
     elif topic == "商业模式与商业化进展":
         claim_groups = [claims.business_model_claims, claims.traction_claims, claims.financial_claims]
+    elif topic == "股权结构与融资计划":
+        claim_groups = [claims.fundraising_claims]
+    elif topic == "知识产权与资质认证":
+        claim_groups = [claims.technology_claims]
+    elif topic == "业绩表现与发展规划":
+        claim_groups = [claims.financial_claims, claims.traction_claims]
     elif topic == "团队与资源匹配度":
         claim_groups = [claims.team_claims]
     elif topic == "行业阶段与市场空间":
         claim_groups = [claims.market_claims]
+    elif topic == "国内外发展现状":
+        claim_groups = [claims.market_claims]
+    elif topic == "市场规模与增长测算":
+        claim_groups = [claims.market_claims, claims.financial_claims]
     elif topic == "竞争格局与替代方案":
         claim_groups = []
     elif topic == "政策环境与监管约束":

@@ -11,6 +11,7 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
 
 from bp_investment_screening.llm import LLMClient
+from bp_investment_screening.report_composer import ReportSectionComposer
 from bp_investment_screening.schemas import EvidenceItem, InvestmentMemo, Layer1ResearchItem
 from bp_investment_screening.technical_background import generate_technical_background_sections
 
@@ -63,13 +64,14 @@ def _render_document(
     llm_client: LLMClient | None,
 ) -> None:
     _add_title(doc, f"{memo.project_name}初步研判报告")
+    composer = ReportSectionComposer(llm_client=llm_client)
     _add_first_heading(doc, "一、项目基本情况梳理")
     _add_second_heading(doc, "（一）公司基础概况")
-    _add_body(doc, _company_overview(memo))
+    _add_body(doc, composer.compose(memo, "公司基础概况", _company_overview(memo), use_llm=False))
     _add_second_heading(doc, "（二）股权结构与融资计划")
-    _add_body(doc, _claims_text(memo, ("融资",), "BP 未稳定披露股权结构与融资计划，需在下一步 DD 中补充确认。"))
+    _add_body(doc, composer.compose(memo, "股权结构与融资计划", "BP 未稳定披露股权结构与融资计划，需在下一步 DD 中补充确认。", use_llm=False))
     _add_second_heading(doc, "（三）核心团队情况")
-    _add_body(doc, _claims_text(memo, ("团队与资源匹配度",), "BP 未稳定披露核心团队情况，需补充创始人履历、组织分工与关键技术负责人背景。"))
+    _add_body(doc, composer.compose(memo, "核心团队情况", "BP 未稳定披露核心团队情况，需补充创始人履历、组织分工与关键技术负责人背景。", use_llm=False))
     _add_second_heading(doc, "（四）技术背景")
     _add_body(doc, "本部分用于说明项目涉及的技术门类本身，帮助读者先理解基础概念、上位体系、关键原理和技术演进逻辑；具体公司技术进展在后文“产品与技术情况”中展开。")
     for section in generate_technical_background_sections(memo, llm_client=llm_client):
@@ -78,46 +80,46 @@ def _render_document(
 
     _add_second_heading(doc, "（五）产品与技术情况")
     _add_third_heading(doc, "1、技术情况")
-    _add_body(doc, _claims_text(memo, ("核心技术与技术壁垒",), "项目技术情况待补充。"))
+    _add_body(doc, composer.compose(memo, "技术情况", "项目技术情况待补充。", use_llm=False))
     _add_third_heading(doc, "2、产品情况")
-    _add_body(doc, _product_text(memo))
+    _add_body(doc, composer.compose(memo, "产品情况", _product_text(memo), use_llm=False))
     _add_third_heading(doc, "3、知产情况")
-    _add_body(doc, "BP 中如披露专利、软件著作权、核心工艺或技术秘密，应在此处列示；当前需进一步核验知识产权权属、有效性与保护边界。")
+    _add_body(doc, composer.compose(memo, "知产情况", "BP 中如披露专利、软件著作权、核心工艺或技术秘密，应在此处列示；当前需进一步核验知识产权权属、有效性与保护边界。", use_llm=False))
 
     _add_second_heading(doc, "（六）业务与市场布局")
-    _add_body(doc, _claims_text(memo, ("商业模式与商业化进展",), "业务、客户、订单及市场布局信息待补充核验。"))
+    _add_body(doc, composer.compose(memo, "业务与市场布局", "业务、客户、订单及市场布局信息待补充核验。", use_llm=False))
     _add_second_heading(doc, "（七）业绩及发展规划")
-    _add_body(doc, "业绩数据、收入构成、毛利水平、订单可实现性及未来规划均应作为待验证事项，后续需调取财务报表、合同/订单与客户访谈材料。")
+    _add_body(doc, composer.compose(memo, "业绩及发展规划", "业绩数据、收入构成、毛利水平、订单可实现性及未来规划均应作为待验证事项，后续需调取财务报表、合同/订单与客户访谈材料。", use_llm=False))
 
     _add_first_heading(doc, "二、项目所处行业基本情况分析")
     _add_second_heading(doc, "（一）行业核心定义")
-    _add_body(doc, _industry_definition(memo))
+    _add_body(doc, composer.compose(memo, "行业核心定义", _industry_definition(memo), use_llm=False))
     _add_second_heading(doc, "（二）行业发展现状")
     _add_third_heading(doc, "1、海外发展现状")
-    _add_body(doc, "待通过外部资料补充海外行业阶段、主要企业、技术路线及产业化节奏。")
+    _add_body(doc, composer.compose(memo, "海外发展现状", "待通过外部资料补充海外行业阶段、主要企业、技术路线及产业化节奏。", use_llm=False))
     _add_third_heading(doc, "2、国内发展现状")
-    _add_body(doc, "待通过外部资料补充国内政策环境、产业链成熟度、关键供给缺口及国产替代进展。")
+    _add_body(doc, composer.compose(memo, "国内发展现状", "待通过外部资料补充国内政策环境、产业链成熟度、关键供给缺口及国产替代进展。", use_llm=False))
     _add_third_heading(doc, "3、技术突破与核心痛点")
-    _add_body(doc, _claims_text(memo, ("核心技术与技术壁垒", "政策环境与监管约束"), "行业技术突破与核心痛点待外部证据补充。"))
+    _add_body(doc, composer.compose(memo, "技术突破与核心痛点", "行业技术突破与核心痛点待外部证据补充。", use_llm=False))
     _add_second_heading(doc, "（三）行业市场规模")
     _add_third_heading(doc, "1、国内市场规模")
-    _add_body(doc, "待通过可信第三方资料或产业链访谈补充国内市场规模、增速及可服务市场范围。")
+    _add_body(doc, composer.compose(memo, "国内市场规模", "待通过可信第三方资料或产业链访谈补充国内市场规模、增速及可服务市场范围。", use_llm=False))
     _add_third_heading(doc, "2、全球市场规模")
-    _add_body(doc, "待通过可信第三方资料补充全球市场规模、主要区域分布及国际竞争格局。")
+    _add_body(doc, composer.compose(memo, "全球市场规模", "待通过可信第三方资料补充全球市场规模、主要区域分布及国际竞争格局。", use_llm=False))
     _add_second_heading(doc, "（四）行业主要竞争对手")
-    _add_body(doc, _claims_text(memo, ("竞争格局与替代方案",), "主要竞争对手、替代方案及项目差异化待外部证据补充。"))
+    _add_body(doc, composer.compose(memo, "行业主要竞争对手", "主要竞争对手、替代方案及项目差异化待外部证据补充。", use_llm=False))
 
     _add_first_heading(doc, "三、初步建议")
     _add_second_heading(doc, "（一）项目优势")
     _add_body(doc, _list_to_sentence(memo.recommendation.strengths))
     _add_second_heading(doc, "（二）项目疑问点")
-    questions = memo.recommendation.open_questions + memo.recommendation.key_risks
-    _add_body(doc, _list_to_sentence(questions))
+    doubts = memo.recommendation.weaknesses + memo.recommendation.key_risks
+    _add_body(doc, _list_to_sentence(doubts))
     _add_second_heading(doc, "（三）初步判断")
     _add_body(
         doc,
         f"基于当前 BP 信息和已完成的初筛归集，项目初筛建议为“{memo.recommendation.recommendation}”，"
-        f"判断置信度为“{memo.recommendation.confidence}”。{memo.recommendation.one_sentence_view}",
+        f"判断置信度为“{_confidence_label(memo.recommendation.confidence)}”。{memo.recommendation.one_sentence_view}",
     )
 
 
@@ -235,3 +237,11 @@ def _list_to_sentence(items: list[str]) -> str:
     if not items:
         return "当前证据不足，需在下一步 DD 中补充核验。"
     return "；".join(items) + "。"
+
+
+def _confidence_label(confidence: str) -> str:
+    return {
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+    }.get(confidence, confidence)

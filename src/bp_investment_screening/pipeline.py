@@ -25,13 +25,15 @@ class ScreeningPipeline:
         report_writer: ReportWriter | None = None,
         claim_extractor: BPClaimExtractor | None = None,
         layer1_synthesizer: Layer1Synthesizer | None = None,
+        investment_analyzer: InvestmentAnalyzer | None = None,
         tracer: Tracer | None = None,
     ) -> None:
         self.tracer = tracer or NullTracer()
         self.search_client = search_client or _default_search_client(self.tracer)
         self.claim_extractor = claim_extractor or BPClaimExtractor()
+        llm_client = LLMClient(tracer=self.tracer)
         synthesizer = layer1_synthesizer or Layer1Synthesizer(
-            LLMClient(tracer=self.tracer),
+            llm_client,
             tracer=self.tracer,
         )
         self.layer1 = Layer1Researcher(
@@ -39,7 +41,10 @@ class ScreeningPipeline:
             synthesizer=synthesizer,
             tracer=self.tracer,
         )
-        self.layer2 = InvestmentAnalyzer()
+        self.layer2 = investment_analyzer or InvestmentAnalyzer(
+            llm_client=llm_client,
+            tracer=self.tracer,
+        )
         self.report_writer = report_writer or ReportWriter()
 
     def run(
